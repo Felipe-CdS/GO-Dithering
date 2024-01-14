@@ -3,11 +3,20 @@ package main
 import (
 	"image"
 	"image/color"
-	"image/color/palette"
 	"math"
 )
 
-func FirstCorrectIterarion(pixels [][]color.Color, size image.Point, bayerMatrixLvl int) {
+// Just find the closest color to the pallete and swap it
+func rgbFindClosest(pixels [][]color.Color, size image.Point) {
+	for i := 0; i < size.X; i++ {
+		for j := 0; j < size.Y; j++ {
+			r, g, b, a := pixels[i][j].RGBA()
+			pixels[i][j] = findClosestColorFrom(r/256, g/256, b/256, a/256)
+		}
+	}
+}
+
+func blackWhiteBayer(pixels [][]color.Color, size image.Point, bayerMatrixLvl int) {
 
 	var bayerMatrix = NewNonNormalizedMatrix(bayerMatrixLvl)
 	var col, row int = 0, 0
@@ -26,58 +35,24 @@ func FirstCorrectIterarion(pixels [][]color.Color, size image.Point, bayerMatrix
 	}
 }
 
-func secondIteration(pixels [][]color.Color, size image.Point, bayerMatrixLvl int) {
+func rgbBayer(pixels [][]color.Color, size image.Point, bayerMatrixLvl int) {
 
 	var bayerMatrix = NewNormalizedMatrix(bayerMatrixLvl)
 	var col, row int = 0, 0
 
 	for i := 0; i < size.X; i++ {
-		row = i % int(math.Pow(2, (float64(bayerMatrixLvl+1))))
+		row = i % int(math.Pow(2, (float64(bayerMatrixLvl+1)))) // x % N
 		for j := 0; j < size.Y; j++ {
-			col = j % int(math.Pow(2, (float64(bayerMatrixLvl+1))))
+			col = j % int(math.Pow(2, (float64(bayerMatrixLvl+1)))) // y % N
 			r, g, b, a := pixels[i][j].RGBA()
-			var factor float64 = bayerMatrix[row][col]
-			var attempt float64 = (factor * float64(255/bayerMatrixLvl))
+			var attempt float64 = ((bayerMatrix[row][col] - 0.5) * float64(255/bayerMatrixLvl)) // r * M(x % N, y % N)
 
-			// fmt.Printf("%.2f %.2f\n", factor, attempt)
-			r = r * uint32(attempt)
-			g = g * uint32(attempt)
-			b = b * uint32(attempt)
-			pixels[i][j] = findClosestColorFrom(color.RGBA{uint8(r), uint8(g), uint8(b), uint8(a)})
-			pixels[i][j] = findClosestColorFrom(color.RGBA{uint8(r), uint8(g), uint8(b), uint8(a)})
+			pixels[i][j] = findClosestColorFrom(
+				r/256+uint32(attempt),
+				g/256+uint32(attempt),
+				b/256+uint32(attempt),
+				a/256+uint32(attempt),
+			)
 		}
 	}
-}
-
-func findClosestColorFrom(pixel color.Color) color.Color {
-
-	pallete := palette.Plan9
-	// pallete := []color.Color{color.Black, color.White}
-	pixelR, pixelG, pixelB, pixelA := pixel.RGBA()
-
-	var closestDistance float64 = math.MaxFloat64
-	var closest color.Color
-
-	for _, v := range pallete {
-
-		r, g, b, a := v.RGBA()
-		distR := (r - pixelR) * (r - pixelR)
-		// distR := math.Pow((float64(pixelR) - float64(r)), 2)
-		distG := (g - pixelG) * (g - pixelG)
-		// distG := math.Pow((float64(pixelG) - float64(g)), 2)
-		distB := (b - pixelB) * (b - pixelB)
-		// distB := math.Pow((float64(pixelB) - float64(b)), 2)
-		distA := (a - pixelA) * (a - pixelA)
-		// distA := math.Pow((float64(pixelA) - float64(a)), 2)
-		sum := distR + distG + distB + distA
-
-		var dist float64 = math.Sqrt(float64(sum))
-		if dist <= closestDistance {
-			closestDistance = dist
-			closest = v
-		}
-	}
-	// r, g, b, _ := closest.RGBA()
-	// fmt.Printf("%d %d %d %.2f\n", r, g, b, closestDistance)
-	return closest
 }
